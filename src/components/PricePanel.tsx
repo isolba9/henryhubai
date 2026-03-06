@@ -71,7 +71,7 @@ export default function PricePanel() {
 
   // Chart settings
   const [chartType, setChartType] = useState<ChartType>("candlestick");
-  const [timeframe, setTimeframe] = useState<Timeframe>("1M");
+  const [timeframe, setTimeframe] = useState<Timeframe>("6M");
   const [showEma50, setShowEma50] = useState(false);
   const [showEma100, setShowEma100] = useState(false);
   const [showEma200, setShowEma200] = useState(false);
