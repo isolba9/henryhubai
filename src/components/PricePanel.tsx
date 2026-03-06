@@ -188,7 +188,14 @@ export default function PricePanel() {
       }));
 
       series.setData(seriesData);
-      chart.timeScale().fitContent();
+
+      // Default view: current month
+      const now = new Date();
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+      chart.timeScale().setVisibleRange({
+        from: monthStart as unknown as import("lightweight-charts").Time,
+        to: seriesData[seriesData.length - 1].time,
+      });
       chartInstanceRef.current = chart;
 
       const resizeObserver = new ResizeObserver(() => {
