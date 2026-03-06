@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
 interface PriceData {
   name: string;
@@ -18,21 +18,47 @@ interface StorageData {
   timestamp: string;
 }
 
-interface ChartPoint {
-  timestamp: string;
-  price: number;
+interface HistoryPoint {
+  time: string;
+  value: number;
 }
 
 export default function PricePanel() {
   const [price, setPrice] = useState<PriceData | null>(null);
   const [prevPrice, setPrevPrice] = useState<number | null>(null);
   const [storage, setStorage] = useState<StorageData | null>(null);
-  const [chartData, setChartData] = useState<ChartPoint[]>([]);
+  const [historyData, setHistoryData] = useState<HistoryPoint[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState("");
   const [priceError, setPriceError] = useState("");
   const [storageError, setStorageError] = useState("");
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<unknown>(null);
+
+  // Fetch full historical data from EIA
+  const fetchHistory = useCallback(async () => {
+    try {
+      setHistoryLoading(true);
+      const res = await fetch("/api/history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (data.data && data.data.length > 0) {
+        setHistoryData(data.data);
+      }
+      setHistoryError("");
+    } catch (err) {
+      setHistoryError(
+        err instanceof Error ? err.message : "History fetch failed"
+      );
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
 
   // Fetch live price
   const fetchPrice = useCallback(async () => {
@@ -45,7 +71,6 @@ export default function PricePanel() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      setPrevPrice((prev) => prev);
       setPrice((prev) => {
         if (prev) setPrevPrice(prev.price);
         return data;
@@ -53,18 +78,12 @@ export default function PricePanel() {
       setPriceError("");
       setLastUpdate(new Date().toLocaleTimeString());
 
-      // Write to Supabase
+      // Write to Supabase (for download/analysis features)
       fetch("/api/supabase/write", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ priceData: data }),
       }).catch(() => {});
-
-      // Add to local chart data
-      setChartData((prev) => [
-        ...prev.slice(-500),
-        { timestamp: data.timestamp, price: data.price },
-      ]);
     } catch (err) {
       setPriceError(err instanceof Error ? err.message : "Price fetch failed");
     }
@@ -89,37 +108,28 @@ export default function PricePanel() {
     }
   }, []);
 
-  // Fetch chart data from Supabase
-  const fetchChartData = useCallback(async () => {
-    try {
-      const res = await fetch("/api/supabase/query", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ limit: 500 }),
-      });
-      const data = await res.json();
-      if (!res.ok) return;
-      if (data.data && data.data.length > 0) {
-        setChartData(
-          data.data
-            .reverse()
-            .map((d: Record<string, unknown>) => ({
-              timestamp: String(d.timestamp),
-              price: Number(d.price),
-            }))
-        );
+  // Combined chart data: EIA history + today's live price
+  const chartData = useMemo(() => {
+    if (historyData.length === 0) return [];
+    const combined = [...historyData];
+    if (price) {
+      const today = new Date().toISOString().split("T")[0];
+      const lastIdx = combined.length - 1;
+      if (combined[lastIdx]?.time === today) {
+        combined[lastIdx] = { time: today, value: price.price };
+      } else {
+        combined.push({ time: today, value: price.price });
       }
-    } catch {
-      // silently fail for chart data
     }
-  }, []);
+    return combined;
+  }, [historyData, price]);
 
   // Initial load
   useEffect(() => {
+    fetchHistory();
     fetchPrice();
     fetchStorage();
-    fetchChartData();
-  }, [fetchPrice, fetchStorage, fetchChartData]);
+  }, [fetchHistory, fetchPrice, fetchStorage]);
 
   // 60-second price polling
   useEffect(() => {
@@ -143,7 +153,7 @@ export default function PricePanel() {
 
       const chart = createChart(chartRef.current, {
         width: chartRef.current.clientWidth,
-        height: 200,
+        height: 260,
         layout: {
           background: { type: ColorType.Solid, color: "transparent" },
           textColor: "#666",
@@ -151,27 +161,27 @@ export default function PricePanel() {
           fontSize: 10,
         },
         grid: {
-          vertLines: { color: "rgba(0,255,136,0.04)" },
-          horzLines: { color: "rgba(0,255,136,0.04)" },
+          vertLines: { color: "rgba(255,255,255,0.03)" },
+          horzLines: { color: "rgba(255,255,255,0.03)" },
         },
-        rightPriceScale: { borderColor: "rgba(0,255,136,0.1)" },
-        timeScale: { borderColor: "rgba(0,255,136,0.1)", timeVisible: true },
+        rightPriceScale: { borderColor: "rgba(255,255,255,0.08)" },
+        timeScale: { borderColor: "rgba(255,255,255,0.08)", timeVisible: false },
         crosshair: {
-          horzLine: { color: "rgba(0,255,136,0.3)" },
-          vertLine: { color: "rgba(0,255,136,0.3)" },
+          horzLine: { color: "rgba(255,255,255,0.2)" },
+          vertLine: { color: "rgba(255,255,255,0.2)" },
         },
       });
 
       const series = chart.addAreaSeries({
         lineColor: "#00ff88",
-        topColor: "rgba(0,255,136,0.15)",
+        topColor: "rgba(0,255,136,0.12)",
         bottomColor: "rgba(0,255,136,0.01)",
         lineWidth: 2,
       });
 
       const seriesData = chartData.map((d) => ({
-        time: (new Date(d.timestamp).getTime() / 1000) as unknown as import("lightweight-charts").Time,
-        value: d.price,
+        time: d.time as unknown as import("lightweight-charts").Time,
+        value: d.value,
       }));
 
       series.setData(seriesData);
@@ -246,19 +256,29 @@ export default function PricePanel() {
         {/* Chart */}
         <div className="terminal-panel">
           <div className="terminal-panel-header">
-            <span>Price Chart</span>
+            <span>Price Chart — Henry Hub Historical</span>
             <span className="ml-auto text-terminal-muted font-normal text-[9px]">
               {chartData.length > 0
-                ? `${chartData.length} data points`
-                : "No data"}
+                ? `${chartData.length.toLocaleString()} days`
+                : historyLoading
+                  ? "Loading..."
+                  : "No data"}
             </span>
           </div>
           <div className="p-2">
-            {chartData.length > 0 ? (
+            {historyLoading ? (
+              <div className="h-[260px] flex items-center justify-center text-terminal-muted text-[11px]">
+                Loading historical data<span className="cursor-blink">_</span>
+              </div>
+            ) : historyError ? (
+              <div className="h-[260px] flex items-center justify-center text-terminal-red text-[11px]">
+                {historyError}
+              </div>
+            ) : chartData.length > 0 ? (
               <div ref={chartRef} className="w-full" />
             ) : (
-              <div className="h-[200px] flex items-center justify-center text-terminal-muted text-[11px] grid-bg">
-                Collecting data — chart will populate as prices are polled
+              <div className="h-[260px] flex items-center justify-center text-terminal-muted text-[11px]">
+                No historical data available
               </div>
             )}
           </div>
@@ -342,7 +362,7 @@ export default function PricePanel() {
         </div>
 
         <div className="text-[9px] text-terminal-muted text-center py-1">
-          Auto-refresh: 60s interval
+          Live price: 60s interval · Chart: EIA daily history
         </div>
       </div>
     </div>
