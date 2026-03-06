@@ -2,12 +2,19 @@ import { NextRequest } from "next/server";
 import { checkRateLimit, getClientIp, RATE_LIMITS } from "@/lib/rate-limit";
 import {
   validateModel,
-  validateMessages,
   sanitizeString,
   rateLimitResponse,
   errorResponse,
   jsonResponse,
 } from "@/lib/validate";
+import {
+  authenticateRequest,
+  createConversation,
+  saveMessage,
+  getMessages,
+  touchConversation,
+  listConversations,
+} from "@/lib/auth";
 
 const SYSTEM_PROMPT = `You are Henry Hub Terminal, an AI assistant specializing in Henry Hub natural gas data. Your expertise covers:
 
@@ -79,6 +86,12 @@ export async function POST(request: NextRequest) {
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   if (!anthropicKey) return errorResponse("Server misconfigured: missing Anthropic key", 500);
 
+  // Authenticate user
+  const auth = await authenticateRequest(request);
+  if (auth.error || !auth.user) {
+    return errorResponse(auth.error || "Not authenticated", 401);
+  }
+
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -87,20 +100,55 @@ export async function POST(request: NextRequest) {
   }
 
   const model = validateModel(body.model);
-  const messages = validateMessages(body.messages);
-  if (messages.length === 0) return errorResponse("Messages are required");
+  const userMessage = sanitizeString(body.message, 10000);
+  if (!userMessage) return errorResponse("Message is required");
+
+  let conversationId = typeof body.conversationId === "string" ? body.conversationId : null;
 
   const hasSupabase = Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY);
 
   try {
-    let currentMessages = messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    // Create conversation if new
+    if (!conversationId) {
+      const title = userMessage.slice(0, 60) + (userMessage.length > 60 ? "..." : "");
+      conversationId = await createConversation(auth.user.id, title);
+      if (!conversationId) {
+        return errorResponse("Failed to create conversation", 500);
+      }
+    }
+
+    // Save user message to DB
+    await saveMessage(conversationId, "user", userMessage);
+
+    // Fetch full conversation history from DB
+    const dbMessages = await getMessages(conversationId);
+
+    // Build messages array for Claude
+    const claudeMessages = dbMessages
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({ role: m.role, content: m.content }));
+
+    // Enhance system prompt with recent conversation topics for memory
+    let systemPrompt = SYSTEM_PROMPT;
+    try {
+      const recentConvos = await listConversations(auth.user.id);
+      const otherConvos = recentConvos
+        .filter((c) => c.id !== conversationId)
+        .slice(0, 5);
+      if (otherConvos.length > 0) {
+        const topics = otherConvos
+          .map((c) => `- "${c.title}" (${new Date(c.updated_at).toLocaleDateString()})`)
+          .join("\n");
+        systemPrompt += `\n\nUser's recent conversation topics (for context awareness):\n${topics}`;
+      }
+    } catch {
+      /* context enhancement is optional */
+    }
 
     let downloadData: Record<string, unknown>[] | null = null;
     let attempts = 0;
     const maxAttempts = 5;
+    let currentMessages = [...claudeMessages];
 
     while (attempts < maxAttempts) {
       attempts++;
@@ -108,7 +156,7 @@ export async function POST(request: NextRequest) {
       const anthropicBody: Record<string, unknown> = {
         model,
         max_tokens: 4096,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: currentMessages,
       };
 
@@ -127,7 +175,6 @@ export async function POST(request: NextRequest) {
       });
 
       if (!res.ok) {
-        const text = await res.text();
         return errorResponse(`AI service error: ${res.status}`, res.status);
       }
 
@@ -213,7 +260,11 @@ export async function POST(request: NextRequest) {
         .map((c: ContentBlock) => c.text || "")
         .join("\n");
 
-      return jsonResponse({ content: textContent, model, downloadData });
+      // Save assistant response to DB
+      await saveMessage(conversationId, "assistant", textContent);
+      await touchConversation(conversationId);
+
+      return jsonResponse({ content: textContent, model, downloadData, conversationId });
     }
 
     return errorResponse("Max tool use attempts reached", 500);

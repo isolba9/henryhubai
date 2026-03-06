@@ -4,18 +4,41 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import ChatPanel from "@/components/ChatPanel";
 import PricePanel from "@/components/PricePanel";
+import AuthModal from "@/components/AuthModal";
 
 type Model = "claude-opus-4-6" | "claude-sonnet-4-6";
+
+interface AuthUser {
+  id: string;
+  email: string;
+  display_name: string | null;
+}
 
 export default function Home() {
   const [model, setModel] = useState<Model>("claude-sonnet-4-6");
   const [mounted, setMounted] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
     setMounted(true);
+
+    // Check if user is already authenticated
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.user) setUser(data.user);
+      })
+      .catch(() => {})
+      .finally(() => setAuthLoading(false));
   }, []);
 
-  if (!mounted) {
+  const handleSignOut = async () => {
+    await fetch("/api/auth/signout", { method: "POST" });
+    setUser(null);
+  };
+
+  if (!mounted || authLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#0a0a0a]">
         <div className="text-white text-sm">
@@ -23,6 +46,11 @@ export default function Home() {
         </div>
       </div>
     );
+  }
+
+  // Show auth modal if not authenticated
+  if (!user) {
+    return <AuthModal onAuthenticated={(u) => setUser(u)} />;
   }
 
   return (
@@ -67,7 +95,18 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="ml-auto flex items-center gap-2 text-[9px] tracking-wider">
+        <div className="ml-auto flex items-center gap-3 text-[9px] tracking-wider">
+          {/* User info + sign out */}
+          <span className="text-terminal-muted">
+            {user.display_name || user.email}
+          </span>
+          <button
+            onClick={handleSignOut}
+            className="text-terminal-muted hover:text-white transition-colors uppercase"
+          >
+            Sign Out
+          </button>
+          <div className="w-px h-3 bg-terminal-border" />
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-terminal-green pulse-live" />
           <span className="text-terminal-muted uppercase">Live</span>
         </div>
@@ -76,7 +115,7 @@ export default function Home() {
       {/* Main Layout */}
       <main className="flex-1 flex overflow-hidden">
         <div className="w-1/2 min-w-0 border-r border-terminal-border">
-          <ChatPanel model={model} />
+          <ChatPanel model={model} userId={user.id} />
         </div>
         <div className="w-1/2 min-w-0">
           <PricePanel />
