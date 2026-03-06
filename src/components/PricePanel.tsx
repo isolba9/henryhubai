@@ -368,6 +368,7 @@ export default function PricePanel() {
         },
         rightPriceScale: {
           borderColor: "rgba(255,255,255,0.08)",
+          autoScale: false,
         },
         timeScale: {
           borderColor: "rgba(255,255,255,0.08)",
@@ -391,6 +392,8 @@ export default function PricePanel() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let mainSeries: any;
 
+      const priceFormat = { type: "price" as const, minMove: 0.1, precision: 1 };
+
       if (chartType === "candlestick") {
         mainSeries = chart.addCandlestickSeries({
           upColor: "#00ff88",
@@ -399,6 +402,7 @@ export default function PricePanel() {
           borderDownColor: "#ff4444",
           wickUpColor: "rgba(0,255,136,0.6)",
           wickDownColor: "rgba(255,68,68,0.6)",
+          priceFormat,
         });
         mainSeries.setData(
           activeCandles.map((d) => ({
@@ -413,6 +417,7 @@ export default function PricePanel() {
         mainSeries = chart.addBarSeries({
           upColor: "#00ff88",
           downColor: "#ff4444",
+          priceFormat,
         });
         mainSeries.setData(
           activeCandles.map((d) => ({
@@ -427,6 +432,7 @@ export default function PricePanel() {
         mainSeries = chart.addLineSeries({
           color: "#00ff88",
           lineWidth: 2,
+          priceFormat,
         });
         mainSeries.setData(
           sortedDaily.map((d) => ({
@@ -494,7 +500,7 @@ export default function PricePanel() {
         });
       }
 
-      // Set visible range
+      // Set visible time range
       if (timeframe === "ALL") {
         chart.timeScale().fitContent();
       } else {
@@ -509,6 +515,27 @@ export default function PricePanel() {
             to: lastItem.time as unknown as import("lightweight-charts").Time,
           });
         }
+      }
+
+      // Set visible price range: min = currentPrice - 0.2, ticks at 0.1
+      {
+        const refPrice = price?.price ?? activeCandles[activeCandles.length - 1]?.close ?? 0;
+        const allHighs = activeCandles.map((c) => c.high);
+        const dataMax = allHighs.length > 0 ? Math.max(...allHighs) : refPrice + 1;
+        const minPrice = Math.floor((refPrice - 0.2) * 10) / 10; // round down to 0.1
+        const maxPrice = Math.ceil((dataMax + 0.1) * 10) / 10;   // round up to 0.1
+        mainSeries.priceScale().applyOptions({
+          autoScale: false,
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (chart as any).priceScale("right").applyOptions({
+          autoScale: false,
+        });
+        mainSeries.applyOptions({
+          autoscaleInfoProvider: () => ({
+            priceRange: { minValue: minPrice, maxValue: maxPrice },
+          }),
+        });
       }
 
       // Crosshair tooltip
