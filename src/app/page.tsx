@@ -89,7 +89,7 @@ export default function Home() {
             {model === "claude-opus-4-6" ? "Opus 4.6" : "Sonnet 4.6"}
           </span>
         </span>
-        <span>&copy; {new Date().getFullYear()} HENRYHUB.ai</span>
+        <span>&copy; {new Date().getFullYear()} HENRYHUB.ai is a product of Alconbury Tech Ltd</span>
       </footer>
     </div>
   );
