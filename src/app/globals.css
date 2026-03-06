@@ -1,0 +1,223 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap");
+
+:root {
+  --t-bg: #0a0a0a;
+  --t-panel: #0d0d0d;
+  --t-green: #00ff88;
+  --t-green-dim: rgba(0, 255, 136, 0.25);
+  --t-green-faint: rgba(0, 255, 136, 0.08);
+  --t-text: #e0e0e0;
+  --t-muted: #555;
+  --t-border: #1a1a2e;
+  --t-red: #ff4444;
+  --t-amber: #ffaa00;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--t-bg);
+  color: var(--t-text);
+  font-family: "IBM Plex Mono", monospace;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--t-green-dim);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--t-green);
+}
+
+/* ── Scanline overlay ── */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.08) 0px,
+    rgba(0, 0, 0, 0.08) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  z-index: 9999;
+}
+
+/* ── Animations ── */
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 4px var(--t-green);
+  }
+  50% {
+    opacity: 0.6;
+    box-shadow: 0 0 8px var(--t-green);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes type-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+.animate-type-in {
+  animation: type-in 0.15s ease-out forwards;
+}
+
+.cursor-blink {
+  animation: blink 1s step-end infinite;
+}
+
+.pulse-live {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ── Glow utilities ── */
+.glow-text {
+  text-shadow: 0 0 8px rgba(0, 255, 136, 0.4), 0 0 20px rgba(0, 255, 136, 0.1);
+}
+
+.glow-border {
+  box-shadow: 0 0 6px rgba(0, 255, 136, 0.08), inset 0 0 6px rgba(0, 255, 136, 0.03);
+}
+
+/* ── Terminal panel ── */
+.terminal-panel {
+  background: var(--t-panel);
+  border: 1px solid var(--t-border);
+  border-radius: 2px;
+}
+
+.terminal-panel-header {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--t-border);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--t-green);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Input styling ── */
+input[type="text"],
+input[type="password"],
+textarea {
+  background: var(--t-bg);
+  border: 1px solid var(--t-border);
+  color: var(--t-text);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 2px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+
+input:focus,
+textarea:focus {
+  border-color: var(--t-green);
+  box-shadow: 0 0 4px rgba(0, 255, 136, 0.15);
+}
+
+/* ── Button styling ── */
+.btn-terminal {
+  background: transparent;
+  border: 1px solid var(--t-green);
+  color: var(--t-green);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 6px 16px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-terminal:hover {
+  background: rgba(0, 255, 136, 0.1);
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.2);
+}
+
+.btn-terminal:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ── Noise texture ── */
+.noise-bg {
+  position: relative;
+}
+.noise-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Grid pattern ── */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(0, 255, 136, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 136, 0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
