@@ -45,6 +45,7 @@ export default function Home() {
         <div className="flex items-center gap-1 bg-black/50 border border-terminal-border rounded-sm p-0.5">
           <button
             onClick={() => setModel("claude-opus-4-6")}
+            title="Deep analysis &amp; complex reasoning — best for detailed research, multi-step analysis, and nuanced market insights"
             className={`px-3 py-1 text-[10px] font-semibold tracking-wider transition-all rounded-sm ${
               model === "claude-opus-4-6"
                 ? "bg-white/10 text-white glow-border"
@@ -55,6 +56,7 @@ export default function Home() {
           </button>
           <button
             onClick={() => setModel("claude-sonnet-4-6")}
+            title="Fast &amp; efficient — best for quick questions, price checks, and simple data lookups"
             className={`px-3 py-1 text-[10px] font-semibold tracking-wider transition-all rounded-sm ${
               model === "claude-sonnet-4-6"
                 ? "bg-white/10 text-white glow-border"
