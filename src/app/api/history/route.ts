@@ -33,11 +33,20 @@ export async function POST(request: NextRequest) {
       url.searchParams.set("length", String(pageSize));
       url.searchParams.set("offset", String(offset));
 
-      const res = await fetch(url.toString());
+      let res = await fetch(url.toString());
+
+      // Retry once on transient server errors (502, 503, 504)
+      if (res.status >= 502 && res.status <= 504) {
+        await new Promise((r) => setTimeout(r, 2000));
+        res = await fetch(url.toString());
+      }
 
       if (!res.ok) {
-        const text = await res.text();
-        return errorResponse(`EIA API error: ${res.status} — ${text}`, res.status);
+        // Return stale cache if available instead of failing
+        if (cache) {
+          return jsonResponse({ data: cache.data, total: cache.data.length, cached: true, stale: true });
+        }
+        return errorResponse(`EIA API temporarily unavailable (${res.status}). Please try again shortly.`, 502);
       }
 
       const json = await res.json();

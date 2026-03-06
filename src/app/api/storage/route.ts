@@ -33,11 +33,16 @@ export async function POST(request: NextRequest) {
     url.searchParams.set("sort[0][direction]", "desc");
     url.searchParams.set("length", "300");
 
-    const res = await fetch(url.toString(), { next: { revalidate: 0 } });
+    let res = await fetch(url.toString(), { next: { revalidate: 0 } });
+
+    // Retry once on transient server errors (502, 503, 504)
+    if (res.status >= 502 && res.status <= 504) {
+      await new Promise((r) => setTimeout(r, 2000));
+      res = await fetch(url.toString(), { next: { revalidate: 0 } });
+    }
 
     if (!res.ok) {
-      const text = await res.text();
-      return errorResponse(`EIA API error: ${res.status} — ${text}`, res.status);
+      return errorResponse(`EIA API temporarily unavailable (${res.status}). Please try again shortly.`, 502);
     }
 
     const json = await res.json();

@@ -134,7 +134,7 @@ export default function PricePanel() {
 
   // --- Data Fetching ---
 
-  const fetchHistory = useCallback(async () => {
+  const fetchHistory = useCallback(async (retry = false) => {
     try {
       setHistoryLoading(true);
       const res = await fetch("/api/history", {
@@ -147,6 +147,11 @@ export default function PricePanel() {
       if (data.data && data.data.length > 0) setHistoryData(data.data);
       setHistoryError("");
     } catch (err) {
+      // Auto-retry once after 3s on failure
+      if (!retry) {
+        setTimeout(() => fetchHistory(true), 3000);
+        return;
+      }
       setHistoryError(
         err instanceof Error ? err.message : "History fetch failed"
       );
