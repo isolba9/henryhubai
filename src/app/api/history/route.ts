@@ -57,10 +57,18 @@ export async function POST(request: NextRequest) {
       return errorResponse("No historical price data returned from EIA");
     }
 
-    // Update cache
-    cache = { data: allData, fetchedAt: Date.now() };
+    // Ensure ascending chronological order (lightweight-charts requires this)
+    allData.sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
 
-    return jsonResponse({ data: allData, total: allData.length, cached: false });
+    // Deduplicate by date (keep last occurrence)
+    const seen = new Map<string, { time: string; value: number }>();
+    for (const d of allData) seen.set(d.time, d);
+    const deduped = Array.from(seen.values());
+
+    // Update cache
+    cache = { data: deduped, fetchedAt: Date.now() };
+
+    return jsonResponse({ data: deduped, total: deduped.length, cached: false });
   } catch (err) {
     // Return stale cache if available
     if (cache) {

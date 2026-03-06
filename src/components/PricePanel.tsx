@@ -108,20 +108,23 @@ export default function PricePanel() {
     }
   }, []);
 
-  // Combined chart data: EIA history + today's live price
+  // Combined chart data: EIA history + today's live price (must be ascending for lightweight-charts)
   const chartData = useMemo(() => {
     if (historyData.length === 0) return [];
-    const combined = [...historyData];
+    // Ensure ascending order
+    const sorted = [...historyData].sort((a, b) =>
+      a.time < b.time ? -1 : a.time > b.time ? 1 : 0
+    );
     if (price) {
       const today = new Date().toISOString().split("T")[0];
-      const lastIdx = combined.length - 1;
-      if (combined[lastIdx]?.time === today) {
-        combined[lastIdx] = { time: today, value: price.price };
+      const lastIdx = sorted.length - 1;
+      if (sorted[lastIdx]?.time === today) {
+        sorted[lastIdx] = { time: today, value: price.price };
       } else {
-        combined.push({ time: today, value: price.price });
+        sorted.push({ time: today, value: price.price });
       }
     }
-    return combined;
+    return sorted;
   }, [historyData, price]);
 
   // Initial load
@@ -275,7 +278,7 @@ export default function PricePanel() {
                 {historyError}
               </div>
             ) : chartData.length > 0 ? (
-              <div ref={chartRef} className="w-full" />
+              <div ref={chartRef} className="w-full h-[260px]" />
             ) : (
               <div className="h-[260px] flex items-center justify-center text-terminal-muted text-[11px]">
                 No historical data available
