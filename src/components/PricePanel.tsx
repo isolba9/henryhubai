@@ -223,14 +223,14 @@ export default function PricePanel() {
           ) : price ? (
             <div>
               <div className="flex items-baseline gap-3">
-                <span className="text-3xl font-bold text-terminal-green glow-text tabular-nums">
+                <span className="text-3xl font-bold text-white glow-text tabular-nums">
                   ${price.price.toFixed(4)}
                 </span>
                 <span className="text-[11px] text-terminal-muted">/MMBtu</span>
               </div>
               <div
                 className={`text-[11px] mt-1 tabular-nums ${
-                  priceChange >= 0 ? "text-terminal-green" : "text-terminal-red"
+                  priceChange >= 0 ? "text-white" : "text-terminal-red"
                 }`}
               >
                 {priceChangeStr} since last poll
@@ -301,7 +301,7 @@ export default function PricePanel() {
                     <span
                       className={`text-[13px] font-semibold tabular-nums ${
                         storage.fiveYearAvg.diff >= 0
-                          ? "text-terminal-green"
+                          ? "text-white"
                           : "text-terminal-red"
                       }`}
                     >
@@ -321,7 +321,7 @@ export default function PricePanel() {
                     <span
                       className={`text-[13px] font-semibold tabular-nums ${
                         storage.yearAgo.diff >= 0
-                          ? "text-terminal-green"
+                          ? "text-white"
                           : "text-terminal-red"
                       }`}
                     >

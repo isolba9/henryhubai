@@ -132,12 +132,12 @@ export default function ChatPanel({ model }: Props) {
         {messages.map((msg, i) => (
           <div key={i} className="animate-fade-in">
             {msg.role === "system" ? (
-              <div className="text-[11px] text-terminal-green/70 leading-relaxed whitespace-pre-wrap font-medium">
+              <div className="text-[11px] text-white/70 leading-relaxed whitespace-pre-wrap font-medium">
                 {msg.content}
               </div>
             ) : msg.role === "user" ? (
               <div className="flex gap-2 text-[12px]">
-                <span className="text-terminal-green font-bold shrink-0">
+                <span className="text-white font-bold shrink-0">
                   {">"}
                 </span>
                 <span className="text-terminal-text whitespace-pre-wrap break-words">
@@ -145,7 +145,7 @@ export default function ChatPanel({ model }: Props) {
                 </span>
               </div>
             ) : (
-              <div className="pl-3 border-l border-terminal-green/20">
+              <div className="pl-3 border-l border-white/20">
                 <div className="text-[10px] text-terminal-muted mb-1">
                   HENRY_HUB_AI
                 </div>
@@ -171,11 +171,11 @@ export default function ChatPanel({ model }: Props) {
         ))}
 
         {loading && (
-          <div className="pl-3 border-l border-terminal-green/20 animate-fade-in">
+          <div className="pl-3 border-l border-white/20 animate-fade-in">
             <div className="text-[10px] text-terminal-muted mb-1">
               HENRY_HUB_AI
             </div>
-            <span className="text-terminal-green text-[12px]">
+            <span className="text-white text-[12px]">
               Processing
               <span className="cursor-blink">_</span>
             </span>
@@ -188,7 +188,7 @@ export default function ChatPanel({ model }: Props) {
       {/* Input Area */}
       <div className="border-t border-terminal-border p-3">
         <div className="flex gap-2 items-end">
-          <span className="text-terminal-green font-bold text-sm shrink-0 pb-1.5">
+          <span className="text-white font-bold text-sm shrink-0 pb-1.5">
             {">"}
           </span>
           <textarea

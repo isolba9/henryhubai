@@ -18,7 +18,7 @@ export default function Home() {
   if (!mounted) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#0a0a0a]">
-        <div className="text-terminal-green text-sm">
+        <div className="text-white text-sm">
           Initializing terminal<span className="cursor-blink">_</span>
         </div>
       </div>
@@ -47,7 +47,7 @@ export default function Home() {
             onClick={() => setModel("claude-opus-4-6")}
             className={`px-3 py-1 text-[10px] font-semibold tracking-wider transition-all rounded-sm ${
               model === "claude-opus-4-6"
-                ? "bg-terminal-green/15 text-terminal-green glow-border"
+                ? "bg-white/10 text-white glow-border"
                 : "text-terminal-muted hover:text-terminal-text"
             }`}
           >
@@ -57,7 +57,7 @@ export default function Home() {
             onClick={() => setModel("claude-sonnet-4-6")}
             className={`px-3 py-1 text-[10px] font-semibold tracking-wider transition-all rounded-sm ${
               model === "claude-sonnet-4-6"
-                ? "bg-terminal-green/15 text-terminal-green glow-border"
+                ? "bg-white/10 text-white glow-border"
                 : "text-terminal-muted hover:text-terminal-text"
             }`}
           >
@@ -85,7 +85,7 @@ export default function Home() {
       <footer className="px-4 py-1 border-t border-terminal-border flex items-center justify-between text-[9px] text-terminal-muted bg-[#0a0a0a] relative z-10">
         <span>
           HENRYHUB.ai Terminal — Model:{" "}
-          <span className="text-terminal-green">
+          <span className="text-white">
             {model === "claude-opus-4-6" ? "Opus 4.6" : "Sonnet 4.6"}
           </span>
         </span>

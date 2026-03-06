@@ -125,11 +125,11 @@ body::after {
 
 /* ── Glow utilities ── */
 .glow-text {
-  text-shadow: 0 0 8px rgba(0, 255, 136, 0.4), 0 0 20px rgba(0, 255, 136, 0.1);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.2), 0 0 20px rgba(255, 255, 255, 0.05);
 }
 
 .glow-border {
-  box-shadow: 0 0 6px rgba(0, 255, 136, 0.08), inset 0 0 6px rgba(0, 255, 136, 0.03);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.04), inset 0 0 6px rgba(255, 255, 255, 0.02);
 }
 
 /* ── Terminal panel ── */
@@ -146,7 +146,7 @@ body::after {
   font-weight: 600;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: var(--t-green);
+  color: #ffffff;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -170,15 +170,15 @@ textarea {
 
 input:focus,
 textarea:focus {
-  border-color: var(--t-green);
-  box-shadow: 0 0 4px rgba(0, 255, 136, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.1);
 }
 
 /* ── Button styling ── */
 .btn-terminal {
   background: transparent;
-  border: 1px solid var(--t-green);
-  color: var(--t-green);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #ffffff;
   font-family: "IBM Plex Mono", monospace;
   font-size: 11px;
   font-weight: 600;
@@ -191,8 +191,9 @@ textarea:focus {
 }
 
 .btn-terminal:hover {
-  background: rgba(0, 255, 136, 0.1);
-  box-shadow: 0 0 8px rgba(0, 255, 136, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #ffffff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.1);
 }
 
 .btn-terminal:disabled {
