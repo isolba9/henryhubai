@@ -189,11 +189,12 @@ export default function PricePanel() {
 
       series.setData(seriesData);
 
-      // Default view: current month
+      // Default view: past 30 days
       const now = new Date();
-      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const from = `${thirtyDaysAgo.getFullYear()}-${String(thirtyDaysAgo.getMonth() + 1).padStart(2, "0")}-${String(thirtyDaysAgo.getDate()).padStart(2, "0")}`;
       chart.timeScale().setVisibleRange({
-        from: monthStart as unknown as import("lightweight-charts").Time,
+        from: from as unknown as import("lightweight-charts").Time,
         to: seriesData[seriesData.length - 1].time,
       });
       chartInstanceRef.current = chart;
