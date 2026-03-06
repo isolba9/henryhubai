@@ -108,10 +108,9 @@ export default function PricePanel() {
     }
   }, []);
 
-  // Combined chart data: EIA history + today's live price (must be ascending for lightweight-charts)
-  const chartData = useMemo(() => {
+  // Build weekly OHLC candles from daily close prices
+  const candleData = useMemo(() => {
     if (historyData.length === 0) return [];
-    // Ensure ascending order
     const sorted = [...historyData].sort((a, b) =>
       a.time < b.time ? -1 : a.time > b.time ? 1 : 0
     );
@@ -124,7 +123,29 @@ export default function PricePanel() {
         sorted.push({ time: today, value: price.price });
       }
     }
-    return sorted;
+
+    // Group by ISO week (Monday-based)
+    const weeks = new Map<string, { time: string; values: number[] }>();
+    for (const d of sorted) {
+      const date = new Date(d.time + "T00:00:00");
+      const day = date.getDay();
+      const mondayOffset = day === 0 ? -6 : 1 - day;
+      const monday = new Date(date);
+      monday.setDate(date.getDate() + mondayOffset);
+      const weekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+      if (!weeks.has(weekKey)) {
+        weeks.set(weekKey, { time: weekKey, values: [] });
+      }
+      weeks.get(weekKey)!.values.push(d.value);
+    }
+
+    return Array.from(weeks.values()).map((w) => ({
+      time: w.time,
+      open: w.values[0],
+      high: Math.max(...w.values),
+      low: Math.min(...w.values),
+      close: w.values[w.values.length - 1],
+    }));
   }, [historyData, price]);
 
   // Initial load
@@ -140,9 +161,9 @@ export default function PricePanel() {
     return () => clearInterval(interval);
   }, [fetchPrice]);
 
-  // Render chart with lightweight-charts
+  // Render candlestick chart with lightweight-charts
   useEffect(() => {
-    if (!chartRef.current || chartData.length === 0) return;
+    if (!chartRef.current || candleData.length === 0) return;
 
     let cancelled = false;
 
@@ -175,21 +196,26 @@ export default function PricePanel() {
         },
       });
 
-      const series = chart.addAreaSeries({
-        lineColor: "#00ff88",
-        topColor: "rgba(0,255,136,0.12)",
-        bottomColor: "rgba(0,255,136,0.01)",
-        lineWidth: 2,
+      const series = chart.addCandlestickSeries({
+        upColor: "#00ff88",
+        downColor: "#ff4444",
+        borderUpColor: "#00ff88",
+        borderDownColor: "#ff4444",
+        wickUpColor: "#00ff88",
+        wickDownColor: "#ff4444",
       });
 
-      const seriesData = chartData.map((d) => ({
+      const seriesData = candleData.map((d) => ({
         time: d.time as unknown as import("lightweight-charts").Time,
-        value: d.value,
+        open: d.open,
+        high: d.high,
+        low: d.low,
+        close: d.close,
       }));
 
       series.setData(seriesData);
 
-      // Default view: past 30 days
+      // Default view: past 30 days (~5 weekly candles)
       const now = new Date();
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       const from = `${thirtyDaysAgo.getFullYear()}-${String(thirtyDaysAgo.getMonth() + 1).padStart(2, "0")}-${String(thirtyDaysAgo.getDate()).padStart(2, "0")}`;
@@ -210,7 +236,7 @@ export default function PricePanel() {
     return () => {
       cancelled = true;
     };
-  }, [chartData]);
+  }, [candleData]);
 
   const priceChange = price && prevPrice ? price.price - prevPrice : 0;
   const priceChangeStr =
@@ -269,8 +295,8 @@ export default function PricePanel() {
           <div className="terminal-panel-header">
             <span>Price Chart — Henry Hub Historical</span>
             <span className="ml-auto text-terminal-muted font-normal text-[9px]">
-              {chartData.length > 0
-                ? `${chartData.length.toLocaleString()} days`
+              {candleData.length > 0
+                ? `${candleData.length.toLocaleString()} weeks`
                 : historyLoading
                   ? "Loading..."
                   : "No data"}
@@ -285,7 +311,7 @@ export default function PricePanel() {
               <div className="h-[260px] flex items-center justify-center text-terminal-red text-[11px]">
                 {historyError}
               </div>
-            ) : chartData.length > 0 ? (
+            ) : candleData.length > 0 ? (
               <div ref={chartRef} className="w-full h-[260px]" />
             ) : (
               <div className="h-[260px] flex items-center justify-center text-terminal-muted text-[11px]">
@@ -373,7 +399,7 @@ export default function PricePanel() {
         </div>
 
         <div className="text-[9px] text-terminal-muted text-center py-1">
-          Live price: 60s interval · Chart: EIA daily history
+          Live price: 60s interval · Chart: Weekly candles from EIA daily data
         </div>
       </div>
     </div>
