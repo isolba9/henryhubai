@@ -27,10 +27,8 @@ export async function POST(request: NextRequest) {
   if (!eiaKey) return errorResponse("Server misconfigured: missing EIA API key", 500);
 
   try {
-    const url = new URL("https://api.eia.gov/v2/natural-gas/stor/wkly/data/");
+    const url = new URL("https://api.eia.gov/v2/seriesid/NG.NW2_EPG0_SWO_R48_BCF.W");
     url.searchParams.set("api_key", eiaKey);
-    url.searchParams.set("data[]", "value");
-    url.searchParams.set("facets[series][]", "NW2_EPG0_SWO_R48_BCF");
     url.searchParams.set("sort[0][column]", "period");
     url.searchParams.set("sort[0][direction]", "desc");
     url.searchParams.set("length", "300");

@@ -26,11 +26,8 @@ export async function POST(request: NextRequest) {
     let hasMore = true;
 
     while (hasMore) {
-      const url = new URL("https://api.eia.gov/v2/natural-gas/pri/fut/data/");
+      const url = new URL("https://api.eia.gov/v2/seriesid/NG.RNGWHHD.D");
       url.searchParams.set("api_key", eiaKey);
-      url.searchParams.set("data[]", "value");
-      url.searchParams.set("facets[series][]", "RNGWHHD");
-      url.searchParams.set("frequency", "daily");
       url.searchParams.set("sort[0][column]", "period");
       url.searchParams.set("sort[0][direction]", "asc");
       url.searchParams.set("length", String(pageSize));
