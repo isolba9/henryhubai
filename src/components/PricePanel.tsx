@@ -272,10 +272,12 @@ export default function PricePanel() {
     return m;
   }, [ema200Data]);
 
-  // Use daily candles for 1M/3M, weekly for longer
+  // Use daily candles for 1M/3M/6M, weekly for longer
   const activeCandles = useMemo(
     () =>
-      timeframe === "1M" || timeframe === "3M" ? dailyCandles : weeklyCandles,
+      timeframe === "1M" || timeframe === "3M" || timeframe === "6M"
+        ? dailyCandles
+        : weeklyCandles,
     [timeframe, dailyCandles, weeklyCandles]
   );
 
