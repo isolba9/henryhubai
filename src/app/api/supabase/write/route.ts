@@ -1,8 +1,6 @@
 import { NextRequest } from "next/server";
 import { checkRateLimit, getClientIp, RATE_LIMITS } from "@/lib/rate-limit";
 import {
-  validateApiKey,
-  validateUrl,
   sanitizeString,
   rateLimitResponse,
   errorResponse,
@@ -14,23 +12,17 @@ export async function POST(request: NextRequest) {
   const rl = checkRateLimit(ip, "supabase-write", RATE_LIMITS.STANDARD);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
 
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    return errorResponse("Server misconfigured: missing Supabase credentials", 500);
+  }
+
   let body: Record<string, unknown>;
   try {
     body = await request.json();
   } catch {
     return errorResponse("Invalid JSON body");
-  }
-
-  const supabaseUrl =
-    validateUrl(body.supabaseUrl as string) ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    "";
-  const supabaseKey =
-    validateApiKey(body.supabaseKey) ||
-    sanitizeString(process.env.SUPABASE_ANON_KEY || "");
-
-  if (!supabaseUrl || !supabaseKey) {
-    return errorResponse("Supabase credentials are required", 401);
   }
 
   const priceData = body.priceData as Record<string, unknown> | undefined;
@@ -60,16 +52,13 @@ export async function POST(request: NextRequest) {
 
     if (!res.ok) {
       const text = await res.text();
-      return errorResponse(
-        `Supabase write error: ${res.status} — ${text}`,
-        res.status
-      );
+      return errorResponse(`Database write error: ${res.status} — ${text}`, res.status);
     }
 
     return jsonResponse({ success: true, record });
   } catch (err) {
     return errorResponse(
-      `Supabase write failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+      `Database write failed: ${err instanceof Error ? err.message : "Unknown error"}`,
       502
     );
   }

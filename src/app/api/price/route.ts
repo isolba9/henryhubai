@@ -4,30 +4,15 @@ import {
   getClientIp,
   RATE_LIMITS,
 } from "@/lib/rate-limit";
-import {
-  validateApiKey,
-  sanitizeString,
-  rateLimitResponse,
-  errorResponse,
-  jsonResponse,
-} from "@/lib/validate";
+import { rateLimitResponse, errorResponse, jsonResponse } from "@/lib/validate";
 
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
   const rl = checkRateLimit(ip, "price", RATE_LIMITS.STANDARD);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
 
-  let body: Record<string, unknown>;
-  try {
-    body = await request.json();
-  } catch {
-    return errorResponse("Invalid JSON body");
-  }
-
-  const apiKey =
-    validateApiKey(body.apiKey) ||
-    sanitizeString(process.env.API_NINJAS_KEY || "");
-  if (!apiKey) return errorResponse("API Ninjas key is required", 401);
+  const apiKey = process.env.API_NINJAS_KEY;
+  if (!apiKey) return errorResponse("Server misconfigured: missing API Ninjas key", 500);
 
   try {
     const res = await fetch(
@@ -40,14 +25,10 @@ export async function POST(request: NextRequest) {
 
     if (!res.ok) {
       const text = await res.text();
-      return errorResponse(
-        `API Ninjas error: ${res.status} — ${text}`,
-        res.status
-      );
+      return errorResponse(`API Ninjas error: ${res.status} — ${text}`, res.status);
     }
 
     const data = await res.json();
-
     const record = Array.isArray(data) ? data[0] : data;
     if (!record || typeof record.price !== "number") {
       return errorResponse("Unexpected response from API Ninjas");

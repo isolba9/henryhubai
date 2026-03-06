@@ -1,11 +1,9 @@
 import { NextRequest } from "next/server";
 import { checkRateLimit, getClientIp, RATE_LIMITS } from "@/lib/rate-limit";
 import {
-  validateApiKey,
   validateModel,
   validateMessages,
   sanitizeString,
-  validateUrl,
   rateLimitResponse,
   errorResponse,
   jsonResponse,
@@ -42,12 +40,11 @@ const TOOLS = [
   },
 ];
 
-async function querySupabase(
-  supabaseUrl: string,
-  supabaseKey: string,
-  startDate: string,
-  endDate: string
-) {
+async function querySupabase(startDate: string, endDate: string) {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) throw new Error("Database not configured");
+
   const url = `${supabaseUrl}/rest/v1/price_history?timestamp=gte.${startDate}&timestamp=lte.${endDate}&order=timestamp.asc&limit=10000`;
   const res = await fetch(url, {
     headers: {
@@ -57,10 +54,7 @@ async function querySupabase(
     },
   });
 
-  if (!res.ok) {
-    throw new Error(`Supabase query failed: ${res.status}`);
-  }
-
+  if (!res.ok) throw new Error(`Supabase query failed: ${res.status}`);
   return res.json();
 }
 
@@ -82,6 +76,9 @@ export async function POST(request: NextRequest) {
   const rl = checkRateLimit(ip, "chat", RATE_LIMITS.AUTH);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
 
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (!anthropicKey) return errorResponse("Server misconfigured: missing Anthropic key", 500);
+
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -89,20 +86,11 @@ export async function POST(request: NextRequest) {
     return errorResponse("Invalid JSON body");
   }
 
-  const anthropicKey =
-    validateApiKey(body.anthropicKey) ||
-    sanitizeString(process.env.ANTHROPIC_API_KEY || "");
-  if (!anthropicKey) return errorResponse("Anthropic API key is required", 401);
-
   const model = validateModel(body.model);
   const messages = validateMessages(body.messages);
   if (messages.length === 0) return errorResponse("Messages are required");
 
-  const supabaseUrl = validateUrl(body.supabaseUrl) || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const supabaseKey =
-    validateApiKey(body.supabaseKey) || process.env.SUPABASE_ANON_KEY || "";
-
-  const hasSupabase = Boolean(supabaseUrl && supabaseKey);
+  const hasSupabase = Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY);
 
   try {
     let currentMessages = messages.map((m) => ({
@@ -140,30 +128,20 @@ export async function POST(request: NextRequest) {
 
       if (!res.ok) {
         const text = await res.text();
-        return errorResponse(
-          `Anthropic API error: ${res.status} — ${text}`,
-          res.status
-        );
+        return errorResponse(`AI service error: ${res.status}`, res.status);
       }
 
       const data: AnthropicResponse = await res.json();
 
       if (data.stop_reason === "tool_use") {
-        const toolUse = data.content.find(
-          (c: ContentBlock) => c.type === "tool_use"
-        );
+        const toolUse = data.content.find((c: ContentBlock) => c.type === "tool_use");
         if (!toolUse || !toolUse.id || !toolUse.input) break;
 
         if (toolUse.name === "query_price_data" && hasSupabase) {
           try {
             const startDate = sanitizeString(toolUse.input.start_date, 30);
             const endDate = sanitizeString(toolUse.input.end_date, 30);
-            const results = await querySupabase(
-              supabaseUrl,
-              supabaseKey,
-              startDate,
-              endDate
-            );
+            const results = await querySupabase(startDate, endDate);
 
             downloadData = results;
 
@@ -178,34 +156,23 @@ export async function POST(request: NextRequest) {
                     tool_use_id: toolUse.id,
                     content: JSON.stringify({
                       record_count: results.length,
-                      date_range: {
-                        start: startDate,
-                        end: endDate,
-                      },
-                      sample:
-                        results.length > 0
-                          ? results.slice(0, 5)
-                          : [],
+                      date_range: { start: startDate, end: endDate },
+                      sample: results.length > 0 ? results.slice(0, 5) : [],
                       summary:
                         results.length > 0
                           ? {
                               earliest: results[0]?.timestamp,
                               latest: results[results.length - 1]?.timestamp,
                               min_price: Math.min(
-                                ...results.map(
-                                  (r: Record<string, unknown>) => Number(r.price) || 0
-                                )
+                                ...results.map((r: Record<string, unknown>) => Number(r.price) || 0)
                               ),
                               max_price: Math.max(
-                                ...results.map(
-                                  (r: Record<string, unknown>) => Number(r.price) || 0
-                                )
+                                ...results.map((r: Record<string, unknown>) => Number(r.price) || 0)
                               ),
                               avg_price:
                                 Math.round(
                                   (results.reduce(
-                                    (sum: number, r: Record<string, unknown>) =>
-                                      sum + (Number(r.price) || 0),
+                                    (sum: number, r: Record<string, unknown>) => sum + (Number(r.price) || 0),
                                     0
                                   ) /
                                     results.length) *
@@ -229,7 +196,7 @@ export async function POST(request: NextRequest) {
                   {
                     type: "tool_result",
                     tool_use_id: toolUse.id,
-                    content: `Error querying database: ${err instanceof Error ? err.message : "Unknown error"}. The database may not be configured or the table may not exist.`,
+                    content: `Error querying database: ${err instanceof Error ? err.message : "Unknown error"}`,
                     is_error: true,
                   },
                 ] as unknown as string,
@@ -241,17 +208,12 @@ export async function POST(request: NextRequest) {
         break;
       }
 
-      // Extract text from response
       const textContent = data.content
         .filter((c: ContentBlock) => c.type === "text")
         .map((c: ContentBlock) => c.text || "")
         .join("\n");
 
-      return jsonResponse({
-        content: textContent,
-        model,
-        downloadData,
-      });
+      return jsonResponse({ content: textContent, model, downloadData });
     }
 
     return errorResponse("Max tool use attempts reached", 500);

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import type { Settings } from "./SettingsModal";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -11,7 +10,6 @@ export interface ChatMessage {
 }
 
 interface Props {
-  settings: Settings;
   model: "claude-opus-4-6" | "claude-sonnet-4-6";
 }
 
@@ -37,7 +35,7 @@ function downloadCSV(data: Record<string, unknown>[], filename: string) {
   URL.revokeObjectURL(url);
 }
 
-export default function ChatPanel({ settings, model }: Props) {
+export default function ChatPanel({ model }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "system",
@@ -62,18 +60,6 @@ export default function ChatPanel({ settings, model }: Props) {
   const sendMessage = async () => {
     const text = input.trim();
     if (!text || loading) return;
-    if (!settings.anthropicKey) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "system",
-          content:
-            "ERROR: Anthropic API key not configured. Open Settings to enter your key.",
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-      return;
-    }
 
     const userMsg: ChatMessage = {
       role: "user",
@@ -85,30 +71,20 @@ export default function ChatPanel({ settings, model }: Props) {
     setLoading(true);
 
     try {
-      // Build messages for API (exclude system messages from UI)
       const apiMessages = [...messages, userMsg]
         .filter((m) => m.role !== "system")
-        .map((m) => ({
-          role: m.role,
-          content: m.content,
-        }));
+        .map((m) => ({ role: m.role, content: m.content }));
 
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: apiMessages,
-          model,
-          anthropicKey: settings.anthropicKey,
-          supabaseUrl: settings.supabaseUrl,
-          supabaseKey: settings.supabaseKey,
-        }),
+        body: JSON.stringify({ messages: apiMessages, model }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || `API error: ${res.status}`);
+        throw new Error(data.error || `Service error: ${res.status}`);
       }
 
       const assistantMsg: ChatMessage = {
@@ -123,7 +99,7 @@ export default function ChatPanel({ settings, model }: Props) {
         ...prev,
         {
           role: "system",
-          content: `ERROR: ${err instanceof Error ? err.message : "Unknown error"}`,
+          content: `ERROR: ${err instanceof Error ? err.message : "Service unavailable"}`,
           timestamp: new Date().toISOString(),
         },
       ]);
@@ -220,19 +196,15 @@ export default function ChatPanel({ settings, model }: Props) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={
-              settings.anthropicKey
-                ? "Ask about Henry Hub natural gas..."
-                : "Configure API keys in Settings first"
-            }
-            disabled={loading || !settings.anthropicKey}
+            placeholder="Ask about Henry Hub natural gas..."
+            disabled={loading}
             className="flex-1 bg-transparent border-none outline-none text-terminal-text text-[12px] font-mono resize-none min-h-[20px] max-h-[120px] placeholder:text-terminal-muted/50"
             rows={1}
             style={{ lineHeight: "1.5" }}
           />
           <button
             onClick={sendMessage}
-            disabled={loading || !input.trim() || !settings.anthropicKey}
+            disabled={loading || !input.trim()}
             className="btn-terminal text-[10px] px-3 py-1 shrink-0"
           >
             {loading ? "..." : "Send"}

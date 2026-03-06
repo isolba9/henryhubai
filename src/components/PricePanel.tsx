@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { Settings } from "./SettingsModal";
 
 interface PriceData {
   name: string;
@@ -24,7 +23,7 @@ interface ChartPoint {
   price: number;
 }
 
-export default function PricePanel({ settings }: { settings: Settings }) {
+export default function PricePanel() {
   const [price, setPrice] = useState<PriceData | null>(null);
   const [prevPrice, setPrevPrice] = useState<number | null>(null);
   const [storage, setStorage] = useState<StorageData | null>(null);
@@ -37,52 +36,47 @@ export default function PricePanel({ settings }: { settings: Settings }) {
 
   // Fetch live price
   const fetchPrice = useCallback(async () => {
-    if (!settings.apiNinjasKey) return;
     try {
       const res = await fetch("/api/price", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: settings.apiNinjasKey }),
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      setPrevPrice(price?.price ?? null);
-      setPrice(data);
+      setPrevPrice((prev) => prev);
+      setPrice((prev) => {
+        if (prev) setPrevPrice(prev.price);
+        return data;
+      });
       setPriceError("");
       setLastUpdate(new Date().toLocaleTimeString());
 
       // Write to Supabase
-      if (settings.supabaseUrl && settings.supabaseKey) {
-        fetch("/api/supabase/write", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            supabaseUrl: settings.supabaseUrl,
-            supabaseKey: settings.supabaseKey,
-            priceData: data,
-          }),
-        }).catch(() => {});
+      fetch("/api/supabase/write", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priceData: data }),
+      }).catch(() => {});
 
-        // Add to local chart data
-        setChartData((prev) => [
-          ...prev.slice(-500),
-          { timestamp: data.timestamp, price: data.price },
-        ]);
-      }
+      // Add to local chart data
+      setChartData((prev) => [
+        ...prev.slice(-500),
+        { timestamp: data.timestamp, price: data.price },
+      ]);
     } catch (err) {
       setPriceError(err instanceof Error ? err.message : "Price fetch failed");
     }
-  }, [settings.apiNinjasKey, settings.supabaseUrl, settings.supabaseKey, price?.price]);
+  }, []);
 
   // Fetch storage data
   const fetchStorage = useCallback(async () => {
-    if (!settings.eiaKey) return;
     try {
       const res = await fetch("/api/storage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eiaKey: settings.eiaKey }),
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -93,20 +87,15 @@ export default function PricePanel({ settings }: { settings: Settings }) {
         err instanceof Error ? err.message : "Storage fetch failed"
       );
     }
-  }, [settings.eiaKey]);
+  }, []);
 
   // Fetch chart data from Supabase
   const fetchChartData = useCallback(async () => {
-    if (!settings.supabaseUrl || !settings.supabaseKey) return;
     try {
       const res = await fetch("/api/supabase/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          supabaseUrl: settings.supabaseUrl,
-          supabaseKey: settings.supabaseKey,
-          limit: 500,
-        }),
+        body: JSON.stringify({ limit: 500 }),
       });
       const data = await res.json();
       if (!res.ok) return;
@@ -123,7 +112,7 @@ export default function PricePanel({ settings }: { settings: Settings }) {
     } catch {
       // silently fail for chart data
     }
-  }, [settings.supabaseUrl, settings.supabaseKey]);
+  }, []);
 
   // Initial load
   useEffect(() => {
@@ -134,10 +123,9 @@ export default function PricePanel({ settings }: { settings: Settings }) {
 
   // 60-second price polling
   useEffect(() => {
-    if (!settings.apiNinjasKey) return;
     const interval = setInterval(fetchPrice, 60000);
     return () => clearInterval(interval);
-  }, [settings.apiNinjasKey, fetchPrice]);
+  }, [fetchPrice]);
 
   // Render chart with lightweight-charts
   useEffect(() => {
@@ -148,7 +136,6 @@ export default function PricePanel({ settings }: { settings: Settings }) {
     import("lightweight-charts").then(({ createChart, ColorType }) => {
       if (cancelled || !chartRef.current) return;
 
-      // Clean up previous chart
       if (chartInstanceRef.current) {
         (chartInstanceRef.current as { remove: () => void }).remove();
         chartInstanceRef.current = null;
@@ -167,13 +154,8 @@ export default function PricePanel({ settings }: { settings: Settings }) {
           vertLines: { color: "rgba(0,255,136,0.04)" },
           horzLines: { color: "rgba(0,255,136,0.04)" },
         },
-        rightPriceScale: {
-          borderColor: "rgba(0,255,136,0.1)",
-        },
-        timeScale: {
-          borderColor: "rgba(0,255,136,0.1)",
-          timeVisible: true,
-        },
+        rightPriceScale: { borderColor: "rgba(0,255,136,0.1)" },
+        timeScale: { borderColor: "rgba(0,255,136,0.1)", timeVisible: true },
         crosshair: {
           horzLine: { color: "rgba(0,255,136,0.3)" },
           vertLine: { color: "rgba(0,255,136,0.3)" },
@@ -196,7 +178,6 @@ export default function PricePanel({ settings }: { settings: Settings }) {
       chart.timeScale().fitContent();
       chartInstanceRef.current = chart;
 
-      // Resize handler
       const resizeObserver = new ResizeObserver(() => {
         if (chartRef.current) {
           chart.applyOptions({ width: chartRef.current.clientWidth });
@@ -210,8 +191,7 @@ export default function PricePanel({ settings }: { settings: Settings }) {
     };
   }, [chartData]);
 
-  const priceChange =
-    price && prevPrice ? price.price - prevPrice : 0;
+  const priceChange = price && prevPrice ? price.price - prevPrice : 0;
   const priceChangeStr =
     priceChange > 0
       ? `+${priceChange.toFixed(4)}`
@@ -221,7 +201,6 @@ export default function PricePanel({ settings }: { settings: Settings }) {
 
   return (
     <div className="terminal-panel flex flex-col h-full overflow-y-auto">
-      {/* Header */}
       <div className="terminal-panel-header">
         <span className="inline-block w-2 h-2 rounded-full bg-terminal-green pulse-live" />
         <span>Market Data</span>
@@ -239,11 +218,7 @@ export default function PricePanel({ settings }: { settings: Settings }) {
             Henry Hub Natural Gas — Live
           </div>
 
-          {!settings.apiNinjasKey ? (
-            <div className="text-terminal-muted text-[11px]">
-              Configure API Ninjas key in Settings
-            </div>
-          ) : priceError ? (
+          {priceError ? (
             <div className="text-terminal-red text-[11px]">{priceError}</div>
           ) : price ? (
             <div>
@@ -251,9 +226,7 @@ export default function PricePanel({ settings }: { settings: Settings }) {
                 <span className="text-3xl font-bold text-terminal-green glow-text tabular-nums">
                   ${price.price.toFixed(4)}
                 </span>
-                <span className="text-[11px] text-terminal-muted">
-                  /MMBtu
-                </span>
+                <span className="text-[11px] text-terminal-muted">/MMBtu</span>
               </div>
               <div
                 className={`text-[11px] mt-1 tabular-nums ${
@@ -285,9 +258,7 @@ export default function PricePanel({ settings }: { settings: Settings }) {
               <div ref={chartRef} className="w-full" />
             ) : (
               <div className="h-[200px] flex items-center justify-center text-terminal-muted text-[11px] grid-bg">
-                {settings.supabaseUrl
-                  ? "Collecting data — chart will populate as prices are polled"
-                  : "Configure Supabase in Settings to enable chart"}
+                Collecting data — chart will populate as prices are polled
               </div>
             )}
           </div>
@@ -299,17 +270,12 @@ export default function PricePanel({ settings }: { settings: Settings }) {
             <span>EIA Storage — Lower 48</span>
           </div>
           <div className="p-3">
-            {!settings.eiaKey ? (
-              <div className="text-terminal-muted text-[11px]">
-                Configure EIA API key in Settings
-              </div>
-            ) : storageError ? (
+            {storageError ? (
               <div className="text-terminal-red text-[11px]">
                 {storageError}
               </div>
             ) : storage ? (
               <div className="space-y-2">
-                {/* Current */}
                 <div className="flex justify-between items-baseline">
                   <span className="text-[10px] text-terminal-muted uppercase tracking-wider">
                     Current
@@ -327,7 +293,6 @@ export default function PricePanel({ settings }: { settings: Settings }) {
 
                 <div className="border-t border-terminal-border my-2" />
 
-                {/* vs 5yr avg */}
                 {storage.fiveYearAvg && (
                   <div className="flex justify-between items-baseline">
                     <span className="text-[10px] text-terminal-muted uppercase tracking-wider">
@@ -348,7 +313,6 @@ export default function PricePanel({ settings }: { settings: Settings }) {
                   </div>
                 )}
 
-                {/* vs year ago */}
                 {storage.yearAgo && (
                   <div className="flex justify-between items-baseline">
                     <span className="text-[10px] text-terminal-muted uppercase tracking-wider">
@@ -377,7 +341,6 @@ export default function PricePanel({ settings }: { settings: Settings }) {
           </div>
         </div>
 
-        {/* 60-second poll indicator */}
         <div className="text-[9px] text-terminal-muted text-center py-1">
           Auto-refresh: 60s interval
         </div>

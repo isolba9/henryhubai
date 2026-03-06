@@ -4,13 +4,7 @@ import {
   getClientIp,
   RATE_LIMITS,
 } from "@/lib/rate-limit";
-import {
-  validateApiKey,
-  sanitizeString,
-  rateLimitResponse,
-  errorResponse,
-  jsonResponse,
-} from "@/lib/validate";
+import { rateLimitResponse, errorResponse, jsonResponse } from "@/lib/validate";
 
 interface EiaDataPoint {
   period: string;
@@ -29,17 +23,8 @@ export async function POST(request: NextRequest) {
   const rl = checkRateLimit(ip, "storage", RATE_LIMITS.STANDARD);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
 
-  let body: Record<string, unknown>;
-  try {
-    body = await request.json();
-  } catch {
-    return errorResponse("Invalid JSON body");
-  }
-
-  const eiaKey =
-    validateApiKey(body.eiaKey) ||
-    sanitizeString(process.env.EIA_API_KEY || "");
-  if (!eiaKey) return errorResponse("EIA API key is required", 401);
+  const eiaKey = process.env.EIA_API_KEY;
+  if (!eiaKey) return errorResponse("Server misconfigured: missing EIA API key", 500);
 
   try {
     const url = new URL("https://api.eia.gov/v2/natural-gas/stor/wkly/data/");
@@ -54,10 +39,7 @@ export async function POST(request: NextRequest) {
 
     if (!res.ok) {
       const text = await res.text();
-      return errorResponse(
-        `EIA API error: ${res.status} — ${text}`,
-        res.status
-      );
+      return errorResponse(`EIA API error: ${res.status} — ${text}`, res.status);
     }
 
     const json = await res.json();
@@ -79,61 +61,43 @@ export async function POST(request: NextRequest) {
     const currentWeek = weekOfYear(current.period);
     const currentYear = new Date(current.period).getFullYear();
 
-    // Year-ago: find closest match ~52 weeks back
     const yearAgoTarget = `${currentYear - 1}`;
     const yearAgoRow = rows.find((r) => {
       const rWeek = weekOfYear(r.period);
-      return (
-        r.period.startsWith(yearAgoTarget) && Math.abs(rWeek - currentWeek) <= 2
-      );
+      return r.period.startsWith(yearAgoTarget) && Math.abs(rWeek - currentWeek) <= 2;
     });
 
-    // 5-year average: average of same-week values over past 5 years
     const fiveYearValues: number[] = [];
     for (let y = 1; y <= 5; y++) {
       const targetYear = `${currentYear - y}`;
       const match = rows.find((r) => {
         const rWeek = weekOfYear(r.period);
-        return (
-          r.period.startsWith(targetYear) && Math.abs(rWeek - currentWeek) <= 2
-        );
+        return r.period.startsWith(targetYear) && Math.abs(rWeek - currentWeek) <= 2;
       });
       if (match) fiveYearValues.push(match.value);
     }
 
     const fiveYearAvg =
       fiveYearValues.length > 0
-        ? Math.round(
-            fiveYearValues.reduce((a, b) => a + b, 0) / fiveYearValues.length
-          )
+        ? Math.round(fiveYearValues.reduce((a, b) => a + b, 0) / fiveYearValues.length)
         : null;
 
     const yearAgoValue = yearAgoRow?.value ?? null;
 
     return jsonResponse({
-      current: {
-        period: current.period,
-        value: current.value,
-        unit: "BCF",
-      },
+      current: { period: current.period, value: current.value, unit: "BCF" },
       yearAgo: yearAgoValue
         ? {
             value: yearAgoValue,
             diff: current.value - yearAgoValue,
-            pctChange:
-              Math.round(
-                ((current.value - yearAgoValue) / yearAgoValue) * 1000
-              ) / 10,
+            pctChange: Math.round(((current.value - yearAgoValue) / yearAgoValue) * 1000) / 10,
           }
         : null,
       fiveYearAvg: fiveYearAvg
         ? {
             value: fiveYearAvg,
             diff: current.value - fiveYearAvg,
-            pctChange:
-              Math.round(
-                ((current.value - fiveYearAvg) / fiveYearAvg) * 1000
-              ) / 10,
+            pctChange: Math.round(((current.value - fiveYearAvg) / fiveYearAvg) * 1000) / 10,
           }
         : null,
       timestamp: new Date().toISOString(),
