@@ -19,6 +19,7 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -38,6 +39,15 @@ export default function Home() {
     setUser(null);
   };
 
+  const handleAuthRequired = () => {
+    setShowAuthModal(true);
+  };
+
+  const handleAuthenticated = (u: AuthUser) => {
+    setUser(u);
+    setShowAuthModal(false);
+  };
+
   if (!mounted || authLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#0a0a0a]">
@@ -48,13 +58,13 @@ export default function Home() {
     );
   }
 
-  // Show auth modal if not authenticated
-  if (!user) {
-    return <AuthModal onAuthenticated={(u) => setUser(u)} />;
-  }
-
   return (
     <div className="h-screen flex flex-col noise-bg">
+      {/* Auth Modal Overlay — shown when unauthenticated user tries to chat */}
+      {showAuthModal && (
+        <AuthModal onAuthenticated={handleAuthenticated} />
+      )}
+
       {/* Header */}
       <header className="flex items-center gap-4 px-4 py-2 border-b border-terminal-border bg-[#0a0a0a] relative z-10">
         <div className="shrink-0">
@@ -96,17 +106,30 @@ export default function Home() {
         </div>
 
         <div className="ml-auto flex items-center gap-3 text-[9px] tracking-wider">
-          {/* User info + sign out */}
-          <span className="text-terminal-muted">
-            {user.display_name || user.email}
-          </span>
-          <button
-            onClick={handleSignOut}
-            className="text-terminal-muted hover:text-white transition-colors uppercase"
-          >
-            Sign Out
-          </button>
-          <div className="w-px h-3 bg-terminal-border" />
+          {user ? (
+            <>
+              <span className="text-terminal-muted">
+                {user.display_name || user.email}
+              </span>
+              <button
+                onClick={handleSignOut}
+                className="text-terminal-muted hover:text-white transition-colors uppercase"
+              >
+                Sign Out
+              </button>
+              <div className="w-px h-3 bg-terminal-border" />
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="text-terminal-muted hover:text-white transition-colors uppercase"
+              >
+                Sign In
+              </button>
+              <div className="w-px h-3 bg-terminal-border" />
+            </>
+          )}
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-terminal-green pulse-live" />
           <span className="text-terminal-muted uppercase">Live</span>
         </div>
@@ -115,7 +138,11 @@ export default function Home() {
       {/* Main Layout */}
       <main className="flex-1 flex overflow-hidden">
         <div className="w-1/2 min-w-0 border-r border-terminal-border">
-          <ChatPanel model={model} userId={user.id} />
+          <ChatPanel
+            model={model}
+            userId={user?.id}
+            onAuthRequired={handleAuthRequired}
+          />
         </div>
         <div className="w-1/2 min-w-0">
           <PricePanel />

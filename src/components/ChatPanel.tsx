@@ -18,7 +18,8 @@ interface Conversation {
 
 interface Props {
   model: "claude-opus-4-6" | "claude-sonnet-4-6";
-  userId: string;
+  userId?: string;
+  onAuthRequired?: () => void;
 }
 
 function downloadCSV(data: Record<string, unknown>[], filename: string) {
@@ -67,7 +68,7 @@ const WELCOME: ChatMessage = {
   timestamp: new Date().toISOString(),
 };
 
-export default function ChatPanel({ model, userId }: Props) {
+export default function ChatPanel({ model, userId, onAuthRequired }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -88,6 +89,7 @@ export default function ChatPanel({ model, userId }: Props) {
 
   /* ── Load conversations list ── */
   const loadConversations = useCallback(async () => {
+    if (!userId) return;
     try {
       const res = await fetch("/api/conversations");
       if (res.ok) {
@@ -97,7 +99,7 @@ export default function ChatPanel({ model, userId }: Props) {
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     loadConversations();
@@ -164,6 +166,12 @@ export default function ChatPanel({ model, userId }: Props) {
   const sendMessage = async () => {
     const text = input.trim();
     if (!text || loading) return;
+
+    // Gate: require auth before first prompt
+    if (!userId) {
+      onAuthRequired?.();
+      return;
+    }
 
     const userMsg: ChatMessage = {
       role: "user",
@@ -232,35 +240,39 @@ export default function ChatPanel({ model, userId }: Props) {
     <div className="terminal-panel flex flex-col h-full relative">
       {/* Panel Header */}
       <div className="terminal-panel-header">
-        <button
-          onClick={() => setShowHistory(!showHistory)}
-          className="flex items-center gap-1.5 hover:text-white/80 transition-colors"
-          title="Chat history"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        {userId && (
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className="flex items-center gap-1.5 hover:text-white/80 transition-colors"
+            title="Chat history"
           >
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="18" x2="21" y2="18" />
-          </svg>
-        </button>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+        )}
         <span className="inline-block w-2 h-2 rounded-full bg-terminal-green pulse-live" />
         <span>Chat</span>
-        <button
-          onClick={startNewChat}
-          className="ml-2 text-[9px] text-terminal-muted hover:text-white transition-colors tracking-wider"
-          title="New conversation"
-        >
-          + NEW
-        </button>
+        {userId && (
+          <button
+            onClick={startNewChat}
+            className="ml-2 text-[9px] text-terminal-muted hover:text-white transition-colors tracking-wider"
+            title="New conversation"
+          >
+            + NEW
+          </button>
+        )}
         <span className="ml-auto text-terminal-muted font-normal text-[9px]">
           {model === "claude-opus-4-6" ? "OPUS 4.6" : "SONNET 4.6"}
         </span>
