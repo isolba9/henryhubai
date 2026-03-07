@@ -5,6 +5,7 @@ import {
   calculateEMA,
   generateDailyCandles,
   generateWeeklyCandles,
+  generateMonthlyCandles,
   getTimeframeFrom,
   type HistoryPoint,
   type CandlePoint,
@@ -50,12 +51,38 @@ interface OhlcOverlay {
 
 type ChartType = "candlestick" | "bar" | "line";
 type Timeframe = "1M" | "3M" | "6M" | "1Y" | "ALL";
+type CandleInterval = "1Mo" | "1W" | "1D" | "4h" | "3h" | "2h" | "1h" | "30m" | "15m" | "10m" | "5m" | "3m" | "2m" | "1m";
 
 const TIMEFRAMES: Timeframe[] = ["1M", "3M", "6M", "1Y", "ALL"];
 const CHART_TYPES: { type: ChartType; label: string }[] = [
   { type: "candlestick", label: "Candle" },
   { type: "bar", label: "Bar" },
   { type: "line", label: "Line" },
+];
+
+interface IntervalOption {
+  value: CandleInterval;
+  label: string;
+  short: string;
+  enabled: boolean;
+  group?: string;
+}
+
+const CANDLE_INTERVALS: IntervalOption[] = [
+  { value: "1Mo", label: "Monthly", short: "1Mo", enabled: true },
+  { value: "1W", label: "Weekly", short: "1W", enabled: true },
+  { value: "1D", label: "Daily", short: "1D", enabled: true },
+  { value: "4h", label: "4 Hours", short: "4h", enabled: false, group: "intraday" },
+  { value: "3h", label: "3 Hours", short: "3h", enabled: false, group: "intraday" },
+  { value: "2h", label: "2 Hours", short: "2h", enabled: false, group: "intraday" },
+  { value: "1h", label: "1 Hour", short: "1h", enabled: false, group: "intraday" },
+  { value: "30m", label: "30 Mins", short: "30m", enabled: false, group: "intraday" },
+  { value: "15m", label: "15 Mins", short: "15m", enabled: false, group: "intraday" },
+  { value: "10m", label: "10 Mins", short: "10m", enabled: false, group: "intraday" },
+  { value: "5m", label: "5 Mins", short: "5m", enabled: false, group: "intraday" },
+  { value: "3m", label: "3 Mins", short: "3m", enabled: false, group: "intraday" },
+  { value: "2m", label: "2 Mins", short: "2m", enabled: false, group: "intraday" },
+  { value: "1m", label: "1 Min", short: "1m", enabled: false, group: "intraday" },
 ];
 
 export default function PricePanel() {
@@ -72,6 +99,9 @@ export default function PricePanel() {
   // Chart settings
   const [chartType, setChartType] = useState<ChartType>("candlestick");
   const [timeframe, setTimeframe] = useState<Timeframe>("6M");
+  const [candleInterval, setCandleInterval] = useState<CandleInterval>("1D");
+  const [showIntervalDropdown, setShowIntervalDropdown] = useState(false);
+  const intervalDropdownRef = useRef<HTMLDivElement>(null);
   const [showEma50, setShowEma50] = useState(false);
   const [showEma100, setShowEma100] = useState(false);
   const [showEma200, setShowEma200] = useState(false);
@@ -99,11 +129,26 @@ export default function PricePanel() {
       if (tf && TIMEFRAMES.includes(tf)) setTimeframe(tf);
       const ct = localStorage.getItem("hh-ct") as ChartType;
       if (ct) setChartType(ct);
+      const ci = localStorage.getItem("hh-ci") as CandleInterval;
+      if (ci && CANDLE_INTERVALS.some((o) => o.value === ci && o.enabled)) setCandleInterval(ci);
       if (localStorage.getItem("hh-e50") === "1") setShowEma50(true);
       if (localStorage.getItem("hh-e100") === "1") setShowEma100(true);
       if (localStorage.getItem("hh-e200") === "1") setShowEma200(true);
     } catch {}
   }, []);
+
+  // Close interval dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (intervalDropdownRef.current && !intervalDropdownRef.current.contains(e.target as Node)) {
+        setShowIntervalDropdown(false);
+      }
+    };
+    if (showIntervalDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showIntervalDropdown]);
 
   // Persist preferences
   useEffect(() => {
@@ -116,6 +161,11 @@ export default function PricePanel() {
       localStorage.setItem("hh-ct", chartType);
     } catch {}
   }, [chartType]);
+  useEffect(() => {
+    try {
+      localStorage.setItem("hh-ci", candleInterval);
+    } catch {}
+  }, [candleInterval]);
   useEffect(() => {
     try {
       localStorage.setItem("hh-e50", showEma50 ? "1" : "0");
@@ -241,6 +291,10 @@ export default function PricePanel() {
     () => generateWeeklyCandles(sortedDaily),
     [sortedDaily]
   );
+  const monthlyCandles = useMemo(
+    () => generateMonthlyCandles(sortedDaily),
+    [sortedDaily]
+  );
 
   const ema50Data = useMemo(
     () => (showEma50 ? calculateEMA(sortedDaily, 50) : []),
@@ -272,13 +326,17 @@ export default function PricePanel() {
     return m;
   }, [ema200Data]);
 
-  // Use daily candles for 1M/3M/6M, weekly for longer
+  // Use candle interval to determine active candles
   const activeCandles = useMemo(
-    () =>
-      timeframe === "1M" || timeframe === "3M" || timeframe === "6M"
-        ? dailyCandles
-        : weeklyCandles,
-    [timeframe, dailyCandles, weeklyCandles]
+    () => {
+      switch (candleInterval) {
+        case "1Mo": return monthlyCandles;
+        case "1W": return weeklyCandles;
+        case "1D":
+        default: return dailyCandles;
+      }
+    },
+    [candleInterval, dailyCandles, weeklyCandles, monthlyCandles]
   );
 
   const hasChartData = activeCandles.length > 0;
@@ -662,7 +720,7 @@ export default function PricePanel() {
         : "0.0000";
 
   const candleLabel =
-    timeframe === "1M" || timeframe === "3M" ? "days" : "weeks";
+    candleInterval === "1Mo" ? "months" : candleInterval === "1W" ? "weeks" : "days";
 
   // Last candle for default OHLC display
   const lastCandle = activeCandles[activeCandles.length - 1] ?? null;
@@ -759,6 +817,67 @@ export default function PricePanel() {
 
             <div className="w-px h-3 bg-terminal-border mx-1" />
 
+            {/* Candle Interval Dropdown */}
+            <div className="relative" ref={intervalDropdownRef}>
+              <button
+                onClick={() => setShowIntervalDropdown(!showIntervalDropdown)}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-sm transition-colors ${
+                  showIntervalDropdown
+                    ? "bg-white/10 text-white"
+                    : "text-terminal-muted hover:text-white"
+                }`}
+                title="Candle interval"
+              >
+                <span>{CANDLE_INTERVALS.find((o) => o.value === candleInterval)?.short ?? "1D"}</span>
+                <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
+                  <path d="M1 3l3 3 3-3" stroke="currentColor" strokeWidth="1" fill="none" />
+                </svg>
+              </button>
+
+              {showIntervalDropdown && (
+                <div className="absolute top-full left-0 mt-1 z-30 bg-[#111] border border-terminal-border rounded-sm shadow-lg w-[140px] py-1 animate-fade-in">
+                  {CANDLE_INTERVALS.map((opt, idx) => {
+                    const showDivider = idx === 3 || idx === 7;
+                    return (
+                      <div key={opt.value}>
+                        {showDivider && (
+                          <div className="border-t border-terminal-border/50 my-1" />
+                        )}
+                        <button
+                          onClick={() => {
+                            if (opt.enabled) {
+                              setCandleInterval(opt.value);
+                              setShowIntervalDropdown(false);
+                            }
+                          }}
+                          disabled={!opt.enabled}
+                          className={`w-full text-left px-3 py-1 flex items-center justify-between transition-colors ${
+                            opt.enabled
+                              ? opt.value === candleInterval
+                                ? "bg-white/10 text-white"
+                                : "text-terminal-text hover:bg-white/5 hover:text-white"
+                              : "text-terminal-muted/40 cursor-not-allowed"
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                          <span className={opt.enabled ? "text-terminal-muted" : "text-terminal-muted/30"}>
+                            {opt.short}
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <div className="border-t border-terminal-border/50 mt-1 pt-1 px-3 pb-1">
+                    <span className="text-[8px] text-terminal-muted/50 leading-tight block">
+                      Intraday data coming soon
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="w-px h-3 bg-terminal-border mx-1" />
+
             {/* EMA Toggles */}
             <button
               onClick={() => setShowEma50(!showEma50)}
@@ -801,10 +920,13 @@ export default function PricePanel() {
               </button>
               <button
                 onClick={handleGoToLatest}
-                className="px-1.5 py-0.5 text-terminal-muted hover:text-white rounded-sm transition-colors"
+                className="p-1 text-terminal-muted hover:text-white rounded-sm transition-colors"
                 title="Go to latest price"
               >
-                Latest
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2 2.5l5 3.5-5 3.5V2.5z" fill="currentColor" />
+                  <line x1="9.5" y1="2.5" x2="9.5" y2="9.5" />
+                </svg>
               </button>
             </div>
           </div>

@@ -75,6 +75,25 @@ export function generateWeeklyCandles(data: HistoryPoint[]): CandlePoint[] {
   }));
 }
 
+export function generateMonthlyCandles(data: HistoryPoint[]): CandlePoint[] {
+  if (data.length === 0) return [];
+  const months = new Map<string, { time: string; values: number[] }>();
+  for (const d of data) {
+    // Key by YYYY-MM, use first of month as candle time
+    const monthKey = d.time.slice(0, 7); // "YYYY-MM"
+    const firstOfMonth = `${monthKey}-01`;
+    if (!months.has(monthKey)) months.set(monthKey, { time: firstOfMonth, values: [] });
+    months.get(monthKey)!.values.push(d.value);
+  }
+  return Array.from(months.values()).map((m) => ({
+    time: m.time,
+    open: m.values[0],
+    high: Math.max(...m.values),
+    low: Math.min(...m.values),
+    close: m.values[m.values.length - 1],
+  }));
+}
+
 export function getTimeframeFrom(tf: string): string {
   const now = new Date();
   switch (tf) {
