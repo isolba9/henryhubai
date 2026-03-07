@@ -5,6 +5,7 @@ export interface User {
   email: string;
   display_name: string | null;
   created_at: string;
+  role: string;
 }
 
 interface UserWithHash extends User {
@@ -101,6 +102,7 @@ export async function createUser(
       email: u.email,
       display_name: u.display_name,
       created_at: u.created_at,
+      role: u.role || "user",
     },
   };
 }
@@ -150,7 +152,7 @@ export async function validateSession(token: string): Promise<User | null> {
 
   // Find user
   const userRes = await fetch(
-    `${supabaseUrl()}/rest/v1/users?id=eq.${sessions[0].user_id}&select=id,email,display_name,created_at`,
+    `${supabaseUrl()}/rest/v1/users?id=eq.${sessions[0].user_id}&select=id,email,display_name,created_at,role`,
     { headers: supabaseHeaders() }
   );
   if (!userRes.ok) return null;
@@ -271,4 +273,15 @@ export async function authenticateRequest(
   const user = await validateSession(token);
   if (!user) return { error: "Session expired" };
   return { user };
+}
+
+export async function authenticateAdmin(
+  request: Request
+): Promise<{ user?: User; error?: string }> {
+  const auth = await authenticateRequest(request);
+  if (auth.error || !auth.user) return auth;
+  if (auth.user.role !== "admin") {
+    return { error: "Forbidden" };
+  }
+  return auth;
 }
