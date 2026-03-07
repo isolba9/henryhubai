@@ -37,11 +37,25 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Analytics events table (cookie-free tracking)
+CREATE TABLE IF NOT EXISTS analytics_events (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  event_name TEXT NOT NULL,
+  properties JSONB DEFAULT '{}',
+  session_id TEXT,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  page_path TEXT DEFAULT '/',
+  referrer TEXT,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Disable RLS for server-side API access
 ALTER TABLE users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE sessions DISABLE ROW LEVEL SECURITY;
 ALTER TABLE conversations DISABLE ROW LEVEL SECURITY;
 ALTER TABLE messages DISABLE ROW LEVEL SECURITY;
+ALTER TABLE analytics_events DISABLE ROW LEVEL SECURITY;
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
@@ -52,3 +66,5 @@ CREATE INDEX IF NOT EXISTS idx_conversations_updated ON conversations(updated_at
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_analytics_events_name_created ON analytics_events(event_name, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_analytics_events_user ON analytics_events(user_id, created_at DESC);

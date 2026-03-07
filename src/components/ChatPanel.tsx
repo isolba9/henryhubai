@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { trackEvent } from "@/lib/analytics";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -110,6 +111,7 @@ export default function ChatPanel({ model, userId, onAuthRequired }: Props) {
     setHistoryLoading(true);
     setActiveConversationId(conv.id);
     setShowHistory(false);
+    trackEvent("conversation_loaded", {}, userId);
 
     try {
       const res = await fetch(`/api/conversations/${conv.id}/messages`);
@@ -181,6 +183,11 @@ export default function ChatPanel({ model, userId, onAuthRequired }: Props) {
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setLoading(true);
+    trackEvent("chat_message_sent", {
+      model,
+      isNewConversation: !activeConversationId,
+      messageLength: text.length,
+    }, userId);
 
     try {
       const res = await fetch("/api/chat", {
@@ -385,12 +392,13 @@ export default function ChatPanel({ model, userId, onAuthRequired }: Props) {
                 </div>
                 {msg.downloadData && msg.downloadData.length > 0 && (
                   <button
-                    onClick={() =>
+                    onClick={() => {
+                      trackEvent("csv_download", { recordCount: msg.downloadData!.length }, userId);
                       downloadCSV(
                         msg.downloadData!,
                         `henryhub_prices_${new Date().toISOString().split("T")[0]}.csv`
-                      )
-                    }
+                      );
+                    }}
                     className="btn-terminal mt-2 text-[10px]"
                   >
                     Download CSV ({msg.downloadData.length} records)

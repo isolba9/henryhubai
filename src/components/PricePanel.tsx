@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { trackEvent } from "@/lib/analytics";
 import {
   calculateEMA,
   generateDailyCandles,
@@ -787,7 +788,7 @@ export default function PricePanel() {
             {TIMEFRAMES.map((tf) => (
               <button
                 key={tf}
-                onClick={() => setTimeframe(tf)}
+                onClick={() => { setTimeframe(tf); trackEvent("timeframe_change", { timeframe: tf }); }}
                 className={`px-2 py-0.5 rounded-sm transition-colors ${
                   timeframe === tf
                     ? "bg-white/10 text-white"
@@ -804,7 +805,7 @@ export default function PricePanel() {
             {CHART_TYPES.map(({ type, label }) => (
               <button
                 key={type}
-                onClick={() => setChartType(type)}
+                onClick={() => { setChartType(type); trackEvent("chart_type_change", { chartType: type }); }}
                 className={`px-2 py-0.5 rounded-sm transition-colors ${
                   chartType === type
                     ? "bg-white/10 text-white"
@@ -848,6 +849,7 @@ export default function PricePanel() {
                             if (opt.enabled) {
                               setCandleInterval(opt.value);
                               setShowIntervalDropdown(false);
+                              trackEvent("candle_interval_change", { interval: opt.value });
                             }
                           }}
                           disabled={!opt.enabled}
@@ -880,7 +882,7 @@ export default function PricePanel() {
 
             {/* EMA Toggles */}
             <button
-              onClick={() => setShowEma50(!showEma50)}
+              onClick={() => { setShowEma50(!showEma50); trackEvent("ema_toggle", { ema: "50", enabled: !showEma50 }); }}
               className={`px-1.5 py-0.5 rounded-sm transition-colors ${
                 showEma50
                   ? "text-[#4488ff] bg-[#4488ff]/10"
@@ -890,7 +892,7 @@ export default function PricePanel() {
               E50
             </button>
             <button
-              onClick={() => setShowEma100(!showEma100)}
+              onClick={() => { setShowEma100(!showEma100); trackEvent("ema_toggle", { ema: "100", enabled: !showEma100 }); }}
               className={`px-1.5 py-0.5 rounded-sm transition-colors ${
                 showEma100
                   ? "text-[#ff8844] bg-[#ff8844]/10"
@@ -900,7 +902,7 @@ export default function PricePanel() {
               E100
             </button>
             <button
-              onClick={() => setShowEma200(!showEma200)}
+              onClick={() => { setShowEma200(!showEma200); trackEvent("ema_toggle", { ema: "200", enabled: !showEma200 }); }}
               className={`px-1.5 py-0.5 rounded-sm transition-colors ${
                 showEma200
                   ? "text-[#22cc77] bg-[#22cc77]/10"

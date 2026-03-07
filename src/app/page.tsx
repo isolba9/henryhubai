@@ -5,6 +5,7 @@ import Image from "next/image";
 import ChatPanel from "@/components/ChatPanel";
 import PricePanel from "@/components/PricePanel";
 import AuthModal from "@/components/AuthModal";
+import { trackEvent } from "@/lib/analytics";
 
 type Model = "claude-opus-4-6" | "claude-sonnet-4-6";
 
@@ -23,6 +24,7 @@ export default function Home() {
 
   useEffect(() => {
     setMounted(true);
+    trackEvent("session_start", { referrer: document.referrer });
 
     // Check if user is already authenticated
     fetch("/api/auth/me")
@@ -35,6 +37,7 @@ export default function Home() {
   }, []);
 
   const handleSignOut = async () => {
+    trackEvent("sign_out", {}, user?.id);
     await fetch("/api/auth/signout", { method: "POST" });
     setUser(null);
   };
@@ -46,6 +49,7 @@ export default function Home() {
   const handleAuthenticated = (u: AuthUser) => {
     setUser(u);
     setShowAuthModal(false);
+    trackEvent("auth_complete", {}, u.id);
   };
 
   if (!mounted || authLoading) {
@@ -82,7 +86,7 @@ export default function Home() {
         {/* Model Toggle */}
         <div className="flex items-center gap-1 bg-black/50 border border-terminal-border rounded-sm p-0.5">
           <button
-            onClick={() => setModel("claude-opus-4-6")}
+            onClick={() => { setModel("claude-opus-4-6"); trackEvent("model_switch", { model: "claude-opus-4-6" }, user?.id); }}
             title="Deep analysis &amp; complex reasoning — best for detailed research, multi-step analysis, and nuanced market insights"
             className={`px-3 py-1 text-[10px] font-semibold tracking-wider transition-all rounded-sm ${
               model === "claude-opus-4-6"
@@ -93,7 +97,7 @@ export default function Home() {
             OPUS 4.6
           </button>
           <button
-            onClick={() => setModel("claude-sonnet-4-6")}
+            onClick={() => { setModel("claude-sonnet-4-6"); trackEvent("model_switch", { model: "claude-sonnet-4-6" }, user?.id); }}
             title="Fast &amp; efficient — best for quick questions, price checks, and simple data lookups"
             className={`px-3 py-1 text-[10px] font-semibold tracking-wider transition-all rounded-sm ${
               model === "claude-sonnet-4-6"
