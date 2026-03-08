@@ -161,7 +161,13 @@ export default function Home() {
             {model === "claude-opus-4-6" ? "Opus 4.6" : "Sonnet 4.6"}
           </span>
         </span>
-        <span>&copy; {new Date().getFullYear()} HENRYHUB.ai is a product of Alconbury Tech Ltd</span>
+        <div className="flex items-center gap-3">
+          <span>&copy; {new Date().getFullYear()} Alconbury Tech Ltd</span>
+          <div className="w-px h-3 bg-terminal-border" />
+          <a href="/privacy" className="hover:text-white transition-colors">Privacy</a>
+          <a href="/terms" className="hover:text-white transition-colors">Terms</a>
+          <a href="/disclaimer" className="hover:text-white transition-colors">Disclaimer</a>
+        </div>
       </footer>
     </div>
   );
