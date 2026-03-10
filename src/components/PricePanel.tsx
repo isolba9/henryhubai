@@ -17,6 +17,7 @@ interface PriceData {
   price: number;
   currency: string;
   exchange: string;
+  date?: string;
   updated: number;
   timestamp: string;
 }
@@ -742,7 +743,7 @@ export default function PricePanel() {
         {/* Live Price */}
         <div className="terminal-panel glow-border p-4">
           <div className="text-[9px] tracking-[0.2em] uppercase text-terminal-muted mb-2">
-            Henry Hub Natural Gas — Live
+            Henry Hub Natural Gas — Spot Price
           </div>
           {priceError ? (
             <div className="text-terminal-red text-[11px]">{priceError}</div>
@@ -754,12 +755,13 @@ export default function PricePanel() {
                 </span>
                 <span className="text-[11px] text-terminal-muted">/MMBtu</span>
               </div>
-              <div
-                className={`text-[11px] mt-1 tabular-nums ${
-                  priceChange >= 0 ? "text-white" : "text-terminal-red"
-                }`}
-              >
-                {priceChangeStr} since last poll
+              <div className="text-[11px] mt-1 text-terminal-muted tabular-nums">
+                {price.date || ""}
+                {priceChange !== 0 && (
+                  <span className={priceChange >= 0 ? "text-white ml-2" : "text-terminal-red ml-2"}>
+                    {priceChangeStr}
+                  </span>
+                )}
               </div>
             </div>
           ) : (
