@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
         id: auth.user.id,
         email: auth.user.email,
         display_name: auth.user.display_name,
+        role: auth.user.role,
       },
     }),
     { headers: { "Content-Type": "application/json" } }
