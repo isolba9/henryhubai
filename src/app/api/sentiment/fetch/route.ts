@@ -25,17 +25,60 @@ interface SentimentResult {
   keywords: string[];
 }
 
-/* ── Fetch posts from Reddit public JSON API ── */
+/* ── Reddit OAuth2 token (application-only / client credentials) ── */
 
-async function fetchSubreddit(sub: string): Promise<RedditPost[]> {
+let redditToken: { token: string; expiresAt: number } | null = null;
+
+async function getRedditToken(
+  clientId: string,
+  clientSecret: string
+): Promise<string> {
+  if (redditToken && Date.now() < redditToken.expiresAt) {
+    return redditToken.token;
+  }
+
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString(
+    "base64"
+  );
+
+  const res = await fetch("https://www.reddit.com/api/v1/access_token", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${credentials}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": "HENRYHUB.ai/1.0",
+    },
+    body: "grant_type=client_credentials",
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Reddit auth failed: ${res.status} — ${text}`);
+  }
+
+  const data = await res.json();
+  redditToken = {
+    token: data.access_token,
+    expiresAt: Date.now() + (data.expires_in - 60) * 1000,
+  };
+  return redditToken.token;
+}
+
+/* ── Fetch posts from Reddit OAuth API ── */
+
+async function fetchSubreddit(
+  sub: string,
+  token: string
+): Promise<RedditPost[]> {
   const posts: RedditPost[] = [];
 
   try {
     const res = await fetch(
-      `https://www.reddit.com/r/${sub}/new.json?limit=25`,
+      `https://oauth.reddit.com/r/${sub}/new?limit=25`,
       {
         headers: {
-          "User-Agent": "HENRYHUB.ai Sentiment Monitor/1.0",
+          Authorization: `Bearer ${token}`,
+          "User-Agent": "HENRYHUB.ai/1.0",
         },
       }
     );
@@ -60,7 +103,10 @@ async function fetchSubreddit(sub: string): Promise<RedditPost[]> {
         text.includes("lng") ||
         text.includes("ng futures") ||
         text.includes("gas storage") ||
-        text.includes("gas prices");
+        text.includes("gas prices") ||
+        text.includes("gas demand") ||
+        text.includes("gas production") ||
+        text.includes("gas exports");
 
       if (!isRelevant) continue;
 
@@ -147,21 +193,45 @@ export async function POST(request: NextRequest) {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_ANON_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const redditClientId = process.env.REDDIT_CLIENT_ID;
+  const redditClientSecret = process.env.REDDIT_CLIENT_SECRET;
+
   if (!supabaseUrl || !supabaseKey || !anthropicKey) {
     return errorResponse("Server misconfigured", 500);
+  }
+  if (!redditClientId || !redditClientSecret) {
+    return errorResponse(
+      "Reddit API credentials not configured. Add REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET to environment variables.",
+      500
+    );
+  }
+
+  // 0. Get Reddit OAuth token
+  let token: string;
+  try {
+    token = await getRedditToken(redditClientId, redditClientSecret);
+  } catch (err) {
+    return errorResponse(
+      `Reddit auth failed: ${err instanceof Error ? err.message : "Unknown"}`,
+      502
+    );
   }
 
   // 1. Fetch from all subreddits
   const allPosts: RedditPost[] = [];
   for (const sub of TARGET_SUBS) {
-    const posts = await fetchSubreddit(sub);
+    const posts = await fetchSubreddit(sub, token);
     allPosts.push(...posts);
     // Small delay to respect Reddit rate limits
-    await new Promise((r) => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 500));
   }
 
   if (allPosts.length === 0) {
-    return jsonResponse({ fetched: 0, inserted: 0, message: "No relevant posts found" });
+    return jsonResponse({
+      fetched: 0,
+      inserted: 0,
+      message: "No relevant posts found across subreddits",
+    });
   }
 
   // 2. Check which posts already exist
@@ -177,13 +247,19 @@ export async function POST(request: NextRequest) {
   );
   const existingIds = new Set(
     existingRes.ok
-      ? (await existingRes.json()).map((r: { reddit_id: string }) => r.reddit_id)
+      ? (await existingRes.json()).map(
+          (r: { reddit_id: string }) => r.reddit_id
+        )
       : []
   );
 
   const newPosts = allPosts.filter((p) => !existingIds.has(p.reddit_id));
   if (newPosts.length === 0) {
-    return jsonResponse({ fetched: allPosts.length, inserted: 0, message: "All posts already ingested" });
+    return jsonResponse({
+      fetched: allPosts.length,
+      inserted: 0,
+      message: "All posts already ingested",
+    });
   }
 
   // 3. Analyze sentiment in batches of 10
@@ -199,7 +275,6 @@ export async function POST(request: NextRequest) {
     try {
       results = await analyzeBatch(batch, anthropicKey);
     } catch (err) {
-      // Return partial success
       return jsonResponse({
         fetched: allPosts.length,
         inserted,
@@ -207,7 +282,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Merge and insert
     const rows = batch.map((post, idx) => {
       const analysis = results.find((r) => r.index === idx) || {
         sentiment_score: 0,
