@@ -164,6 +164,8 @@ export default function Home() {
         <div className="flex items-center gap-3">
           <span>&copy; {new Date().getFullYear()} Alconbury Tech Ltd</span>
           <div className="w-px h-3 bg-terminal-border" />
+          <a href="/sentiment" className="hover:text-white transition-colors">Sentiment</a>
+          <div className="w-px h-3 bg-terminal-border" />
           <a href="/privacy" className="hover:text-white transition-colors">Privacy</a>
           <a href="/terms" className="hover:text-white transition-colors">Terms</a>
           <a href="/disclaimer" className="hover:text-white transition-colors">Disclaimer</a>
