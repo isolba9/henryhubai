@@ -288,6 +288,38 @@ export default function SentimentPage() {
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState<7 | 30 | 90>(30);
   const [subreddit, setSubreddit] = useState("all");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [fetchStatus, setFetchStatus] = useState("");
+
+  // Check admin status on mount
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.user?.role === "admin") setIsAdmin(true); })
+      .catch(() => {});
+  }, []);
+
+  const handleFetchReddit = async () => {
+    setFetching(true);
+    setFetchStatus("Fetching posts from Reddit...");
+    try {
+      const res = await fetch("/api/sentiment/fetch", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `Error: ${res.status}`);
+      setFetchStatus(
+        `Done — ${json.fetched} found, ${json.inserted} new posts analysed`
+      );
+      // Refresh data
+      fetchData();
+    } catch (err) {
+      setFetchStatus(
+        `Failed: ${err instanceof Error ? err.message : "Unknown error"}`
+      );
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -348,6 +380,25 @@ export default function SentimentPage() {
               {s.label}
             </button>
           ))}
+
+          {/* Admin: Fetch from Reddit */}
+          {isAdmin && (
+            <>
+              <div className="w-px h-4 bg-terminal-border mx-1" />
+              <button
+                onClick={handleFetchReddit}
+                disabled={fetching}
+                className="px-3 py-1 rounded-sm text-[10px] tracking-wider uppercase border border-terminal-green/30 text-terminal-green hover:bg-terminal-green/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {fetching ? "Fetching..." : "Fetch & Analyse"}
+              </button>
+              {fetchStatus && (
+                <span className="text-[9px] text-terminal-muted ml-1">
+                  {fetchStatus}
+                </span>
+              )}
+            </>
+          )}
         </div>
       </div>
 
